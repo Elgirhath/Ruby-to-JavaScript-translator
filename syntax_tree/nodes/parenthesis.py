@@ -1,9 +1,9 @@
-class Return:
+class Parenthesis:
     def __init__(self, expression):
         self.expression = expression
 
     def __str__(self):
-        return "Return(" + str(self.expression) + ")"
+        return "(" + self.expression.toJavaScript() + ")"
 
     def toJavaScript(self):
-        return "return " + self.expression.toJavaScript()
+        return str(self)

@@ -9,3 +9,10 @@ class MethodArgument:
         out += ", DefaultValue: " + str(self.default_value)
         out += ")"
         return out
+
+    def toJavaScript(self):
+        out = self.name.toJavaScript()
+        if self.default_value:
+            out += " = " + self.default_value.toJavaScript()
+
+        return out

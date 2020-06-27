@@ -9,3 +9,9 @@ class While:
         out += ", StatementList " + str(self.statement_list)
         out += ")"
         return out
+
+    def toJavaScript(self):
+        out = "while(" + self.condition.toJavaScript() +") {\n"
+        out += self.statement_list.toJavaScript()
+        out += "\n}\n"
+        return out

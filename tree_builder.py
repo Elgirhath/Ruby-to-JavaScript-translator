@@ -11,6 +11,10 @@ from syntax_tree.nodes.method_argument import MethodArgument
 from syntax_tree.nodes.method import Method
 from syntax_tree.nodes.else_if import ElseIf
 from syntax_tree.nodes.method_call import MethodCall
+from syntax_tree.factories.method_call_factory import MethodCallFactory
+from syntax_tree.nodes.identifier import Identifier
+from syntax_tree.nodes.built_in import BuiltIn
+from syntax_tree.nodes.parenthesis import Parenthesis
 
 tokens = [
 
@@ -39,7 +43,9 @@ tokens = [
     'DO',
     'DEF',
     'COMMA',
-    'RETURN'
+    'RETURN',
+    'SPACE',
+    'METHOD_NAME_WITH_PARENTHESIS'
 ]
 
 # Use regular expressions to define what each token is
@@ -106,6 +112,11 @@ def t_STRING(t):
     t.value = str(t.value[1 : -1])
     return t
 
+def t_METHOD_NAME_WITH_PARENTHESIS(t):
+    r'[a-zA-Z_][a-zA-Z_0-9]*\('
+    t.value = t.value[:-1]
+    return t
+
 def t_NAME(t):
     r'[a-zA-Z_][a-zA-Z_0-9]*'
     t.type = 'NAME'
@@ -139,24 +150,30 @@ def p_program(p):
 
 def p_statement_list(p):
     '''
-    statement_list : statement empty statement_list
-                   | statement NEWLINE statement_list
-                   | NEWLINE
+    statement_list : statement statement_list
+    '''
+
+    statement_list = p[2]
+    statement_list.children.insert(0, p[1])
+    p[0] = statement_list
+        
+
+def p_statement_list_whitespace(p):
+    '''
+    statement_list : NEWLINE statement_list
                    | empty
     '''
     if len(p) > 2:
-        statement_list = p[3]
-        statement_list.children.insert(0, p[1])
-        p[0] = statement_list
+        p[0] = p[2]
     else:
         p[0] = NodeList([])
         
 
 def p_method(p):
     '''
-    statement : DEF NAME PARENTHESES_OPEN argument_list PARENTHESES_CLOSE NEWLINE statement_list END
+    statement : DEF METHOD_NAME_WITH_PARENTHESIS argument_list PARENTHESES_CLOSE NEWLINE statement_list END
     '''
-    p[0] = Method(p[2], p[4], p[7])
+    p[0] = Method(p[2], p[3], p[6])
 
 def p_method_no_parenthesis(p):
     '''
@@ -164,21 +181,24 @@ def p_method_no_parenthesis(p):
     '''
     p[0] = Method(p[2], [], p[4])
 
+# we don't handle methods with no parameters and no parenthesis at this stage
+# as it is undistinguishable from a single identifier. This will be resolved on another stage
+    
+def p_method_call_with_parenthesis(p):
+    '''
+    method_call : METHOD_NAME_WITH_PARENTHESIS PARENTHESES_CLOSE
+                | METHOD_NAME_WITH_PARENTHESIS calling_argument_list PARENTHESES_CLOSE
+    '''
+    if len(p) > 3:
+        p[0] = MethodCallFactory.get(p[1], p[2])
+    else:
+        p[0] = MethodCallFactory.get(p[1], NodeList([]))
+
 def p_method_call_no_parenthesis(p):
     '''
     method_call : NAME calling_argument_list
     '''
-    p[0] = MethodCall(p[1], p[2])
-    
-def p_method_call_with_parenthesis(p):
-    '''
-    method_call : NAME PARENTHESES_OPEN PARENTHESES_CLOSE
-                | NAME PARENTHESES_OPEN calling_argument_list PARENTHESES_CLOSE
-    '''
-    if len(p) > 4:
-        p[0] = MethodCall(p[1], p[3])
-    else:
-        p[0] = MethodCall(p[1], [])
+    p[0] = MethodCallFactory.get(p[1], p[2])
 
 def p_calling_argument_list(p):
     '''
@@ -186,11 +206,13 @@ def p_calling_argument_list(p):
                   | expression
     '''
     if len(p) > 2:
-        p[0] = [p[1]] + p[3]
+        argument_list = p[3]
+        argument_list.children.insert(0, p[1])
+        p[0] = argument_list
     elif p[1] == None:
-        p[0] = []
+        p[0] = None
     else:
-        p[0] = [p[1]]
+        p[0] = NodeList([p[1]])
 
 def p_argument_list(p):
     '''
@@ -282,7 +304,7 @@ def p_expression_brackets(p):
     '''
     expression : PARENTHESES_OPEN expression PARENTHESES_CLOSE
     '''
-    p[0] = p[2]
+    p[0] = Parenthesis(p[2])
 
 def p_expression_compare(p):
     '''
@@ -305,24 +327,29 @@ def p_expression_factor(p):
     expression : factor
     '''
     p[0] = p[1]
-
+    
 def p_factor(p):
     '''
-    factor : INT
-           | FLOAT
-           | STRING
+    factor : built_in
            | identifier
     '''
     p[0] = p[1]
+
+def p_builtin(p):
+    '''
+    built_in : INT
+           | FLOAT
+           | STRING
+    '''
+    p[0] = BuiltIn(p[1])
+    
 
 def p_identifier(p):
     '''
     identifier : NAME
     '''
-    p[0] = p[1]
+    p[0] = Identifier(p[1])
 
-# Output to the user that there is an error in the input as it doesn't conform to our grammar.
-# p_error is another special Ply function.
 def find_column(input,token):
     last_cr = input.rfind('\n',0,token.lexpos)
     if last_cr < 0:
@@ -334,7 +361,7 @@ def p_error(p):
     print("Syntax error")
     if p:
         print("unexpected token \"%s\"" % p.value)
-        print("at line %d, column %d" % (p.lineno, p.lexpos))
+        print("at line %d" % p.lineno)
     else:
         print("unexpected EOF")
     exit(0)
@@ -348,11 +375,5 @@ def p_empty(p):
 # Build the parser
 parser = yacc.yacc()
     
-def translate(file_path):
-    file = open(file_path, "r")
-    text = file.read()
-    parsed = parser.parse(text)
-    print(parsed)
-
-if __name__ == "__main__":
-    translate(sys.argv[1])
+def build_tree(text):
+    return parser.parse(text)

@@ -11,3 +11,13 @@ class NodeList:
             out += str(child)
         out += "]"
         return out
+
+    def toJavaScript(self, separator = "\n"):
+        out = ""
+        for i, child in enumerate(self.children):
+            if i != 0:
+                out += separator
+
+            out += child.toJavaScript()
+        
+        return out

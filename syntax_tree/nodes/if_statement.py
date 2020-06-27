@@ -13,3 +13,13 @@ class If:
         out += ", ElseStatementList: " + str(self.else_statement_list)
         out += ")"
         return out
+
+    def toJavaScript(self):
+        out = "if(" + self.condition.toJavaScript() + ") {\n"
+        out += self.statement_list.toJavaScript()
+        out += "\n}\n"
+        out += self.elseif_list.toJavaScript()
+        out += "else {\n"
+        out += self.else_statement_list.toJavaScript()
+        out += "\n}\n"
+        return out
