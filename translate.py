@@ -1,0 +1,243 @@
+import ply.lex as lex
+import ply.yacc as yacc
+import sys
+
+tokens = [
+
+    'INT',
+    'FLOAT',
+    'NAME',
+    'PLUS',
+    'MINUS',
+    'DIVIDE',
+    'MULTIPLY',
+    'EQUALS',
+    'NEWLINE',
+    'PARENTHESES_OPEN',
+    'PARENTHESES_CLOSE',
+    'IF',
+    'END',
+    'THEN',
+    'ELSE',
+    'DOUBLE_EQUALS',
+    'LESS_THAN',
+    'GREATER_THAN',
+    'LESS_OR_EQUAL',
+    'GREATER_OR_EQUAL',
+    'ELSIF'
+]
+
+# Use regular expressions to define what each token is
+t_PLUS = r'\+'
+t_MINUS = r'\-'
+t_MULTIPLY = r'\*'
+t_DIVIDE = r'\/'
+t_EQUALS = r'\='
+t_PARENTHESES_OPEN = r'\('
+t_PARENTHESES_CLOSE = r'\)'
+t_DOUBLE_EQUALS = r'\=\='
+t_LESS_THAN = r'<'
+t_GREATER_THAN = r'>'
+t_LESS_OR_EQUAL = r'<\='
+t_GREATER_OR_EQUAL = r'>\='
+
+# Ply's special t_ignore variable allows us to define characters the lexer will ignore.
+# We're ignoring spaces.
+t_ignore = r' '
+
+# More complicated tokens, such as tokens that are more than 1 character in length
+# are defined using functions.
+# A float is 1 or more numbers followed by a dot (.) followed by 1 or more numbers again.
+def t_IF(t):
+    r'if'
+    return t
+
+def t_END(t):
+    r'end'
+    return t
+
+def t_THEN(t):
+    r'then'
+    return t
+
+def t_ELSE(t):
+    r'else'
+    return t
+    
+def t_ELSIF(t):
+    r'elsif'
+    return t
+
+def t_FLOAT(t):
+    r'\d+\.\d+'
+    t.value = float(t.value)
+    return t
+
+# An int is 1 or more numbers.
+def t_INT(t):
+    r'\d+'
+    t.value = int(t.value)
+    return t
+
+# A NAME is a variable name. A variable can be 1 or more characters in length.
+# The first character must be in the ranges a-z A-Z or be an underscore.
+# Any character following the first character can be a-z A-Z 0-9 or an underscore.
+
+def t_NAME(t):
+    r'[a-zA-Z_][a-zA-Z_0-9]*'
+    t.type = 'NAME'
+    return t
+
+def t_error(t):
+    print("Illegal character: \"%s\" at line %d" % (t.value[0], t.lexer.lineno))
+    t.lexer.skip(1)
+    
+def t_NEWLINE(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value) # number of \n
+    return t
+
+# Build the lexer
+lexer = lex.lex()
+
+# Ensure our parser understands the correct order of operations.
+# The precedence variable is a special Ply variable.
+precedence = (
+
+    ('left', 'PLUS', 'MINUS'),
+    ('left', 'MULTIPLY', 'DIVIDE')
+
+)
+
+def p_program(p):
+    '''
+    program : statement_list
+            | empty
+    '''
+    p[0] = p[1]
+
+def p_statement_list(p):
+    '''
+    statement_list : statement statement_list
+                   | empty
+    '''
+    if len(p) > 2:
+        p[0] = [p[1]] + p[2]
+    else:
+        p[0] = []
+
+def p_statement(p):
+    '''
+    statement : if_statement
+              | assignment NEWLINE
+              | expression NEWLINE
+              | assignment
+              | expression
+    '''
+    p[0] = p[1]
+
+def p_if_statement(p):
+    '''
+    if_statement : IF expression NEWLINE statement_list elsif empty empty END
+                 | IF expression NEWLINE statement_list elsif ELSE statement_list END
+    '''
+    p[0] = ('if', p[2], p[4], p[5], p[7])
+
+def p_elsif(p):
+    '''
+    elsif : ELSIF expression NEWLINE statement_list elsif
+          | empty
+    '''
+    if p[1] == None:
+        p[0] = []
+    else:
+        p[0] = [(p[1], p[2], p[4])] + p[5]
+
+def p_assignment(p):
+    '''
+    assignment : identifier EQUALS expression
+    '''
+    p[0] = ('=', p[1], p[3])
+
+# Expressions are recursive.
+def p_expression(p):
+    '''
+    expression : expression MULTIPLY expression
+               | expression DIVIDE expression
+               | expression PLUS expression
+               | expression MINUS expression
+    '''
+    # Build our tree.
+    p[0] = (p[2], p[1], p[3])
+
+def p_expression_brackets(p):
+    '''
+    expression : PARENTHESES_OPEN expression PARENTHESES_CLOSE
+    '''
+    p[0] = p[2]
+
+def p_expression_compare(p):
+    '''
+    expression : expression DOUBLE_EQUALS expression
+               | expression LESS_THAN expression
+               | expression GREATER_THAN expression
+               | expression LESS_OR_EQUAL expression
+               | expression GREATER_OR_EQUAL expression
+    '''
+    p[0] = (p[2], p[1], p[3])
+
+def p_expression_factor(p):
+    '''
+    expression : factor
+    '''
+    p[0] = p[1]
+
+def p_factor(p):
+    '''
+    factor : INT
+           | FLOAT
+           | identifier
+    '''
+    p[0] = p[1]
+
+def p_identifier(p):
+    '''
+    identifier : NAME
+    '''
+    p[0] = p[1]
+
+# Output to the user that there is an error in the input as it doesn't conform to our grammar.
+# p_error is another special Ply function.
+def find_column(input,token):
+    last_cr = input.rfind('\n',0,token.lexpos)
+    if last_cr < 0:
+	    last_cr = 0
+    column = (token.lexpos - last_cr) + 1
+    return column
+
+def p_error(p):
+    print("Syntax error")
+    if p:
+        print("unexpected token \"%s\"" % p.value)
+        print("at line %d, column %d" % (p.lineno, p.lexpos))
+    else:
+        print("unexpected EOF")
+    exit(0)
+
+def p_empty(p):
+    '''
+    empty :
+    '''
+    p[0] = None
+
+# Build the parser
+parser = yacc.yacc()
+    
+def translate(file_path):
+    file = open(file_path, "r")
+    text = file.read()
+    parsed = parser.parse(text)
+    print(parsed)
+
+if __name__ == "__main__":
+    translate(sys.argv[1])

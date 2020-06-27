@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.vscode
+parser.out
+parsetab.py
+
 # C extensions
 *.so
 
