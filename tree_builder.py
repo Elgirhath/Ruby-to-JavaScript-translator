@@ -16,12 +16,14 @@ from syntax_tree.nodes.list import List
 from syntax_tree.nodes.list_access_operator import ListAccessOperator
 from syntax_tree.nodes.identifier import Identifier
 from syntax_tree.nodes.built_in import BuiltIn
+from syntax_tree.nodes.not_operator import Not
 from syntax_tree.nodes.parenthesis import Parenthesis
 
 tokens = [
 
     'INT',
     'FLOAT',
+    'BOOLEAN',
     'STRING',
     'NAME',
     'PLUS',
@@ -52,7 +54,10 @@ tokens = [
     'RETURN',
     'SQUARE_BRACKET_OPEN',
     'SQUARE_BRACKET_CLOSE',
-    'METHOD_COMPLEX_NAME'
+    'METHOD_COMPLEX_NAME',
+    'AND',
+    'OR',
+    'NOT'
 ]
 
 # Use regular expressions to define what each token is
@@ -120,9 +125,26 @@ def t_INT(t):
     t.value = int(t.value)
     return t
     
+def t_BOOLEAN(t):
+    r'true|false'
+    t.value = bool(t.value)
+    return t
+    
 def t_STRING(t):
     r'".*?"'
     t.value = str(t.value[1 : -1])
+    return t
+
+def t_AND(t):
+    r'\&\&|and'
+    return t
+    
+def t_OR(t):
+    r'\|\||or'
+    return t
+    
+def t_NOT(t):
+    r'!|not'
     return t
     
 def t_METHOD_COMPLEX_NAME(t):
@@ -145,8 +167,6 @@ def t_NEWLINE(t):
 
 lexer = lex.lex()
 
-# Ensure our parser understands the correct order of operations.
-# The precedence variable is a special Ply variable.
 precedence = (
 
     ('left', 'PLUS', 'MINUS'),
@@ -335,9 +355,18 @@ def p_expression(p):
                | expression MINUS expression
                | expression POWER expression
                | expression MODULO expression
+               | expression AND expression
+               | expression OR expression
     '''
 
     p[0] = OperatorFactory.get(p[2], p[1], p[3])
+    
+def p_expression_not(p):
+    '''
+    expression : NOT expression
+    '''
+
+    p[0] = Not(p[2])
 
 def p_expression_brackets(p):
     '''
@@ -391,6 +420,7 @@ def p_builtin(p):
     built_in : INT
            | FLOAT
            | STRING
+           | BOOLEAN
     '''
     p[0] = BuiltIn(p[1])
     

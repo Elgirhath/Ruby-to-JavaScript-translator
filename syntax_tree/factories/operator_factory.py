@@ -7,4 +7,8 @@ class OperatorFactory:
 
     @staticmethod
     def get(operator, left, right):
+        if operator == "&&" or operator == "and":
+            return GenericOperator("&&", left, right)
+        if operator == "||" or operator == "or":
+            return GenericOperator("||", left, right)
         return GenericOperator(operator, left, right)
