@@ -6,6 +6,7 @@ tokens = [
 
     'INT',
     'FLOAT',
+    'STRING',
     'NAME',
     'PLUS',
     'MINUS',
@@ -17,14 +18,18 @@ tokens = [
     'PARENTHESES_CLOSE',
     'IF',
     'END',
-    'THEN',
     'ELSE',
     'DOUBLE_EQUALS',
     'LESS_THAN',
     'GREATER_THAN',
     'LESS_OR_EQUAL',
     'GREATER_OR_EQUAL',
-    'ELSIF'
+    'ELSIF',
+    'WHILE',
+    'DO',
+    'DEF',
+    'COMMA',
+    'RETURN'
 ]
 
 # Use regular expressions to define what each token is
@@ -40,6 +45,7 @@ t_LESS_THAN = r'<'
 t_GREATER_THAN = r'>'
 t_LESS_OR_EQUAL = r'<\='
 t_GREATER_OR_EQUAL = r'>\='
+t_COMMA = r'\,'
 
 # Ply's special t_ignore variable allows us to define characters the lexer will ignore.
 # We're ignoring spaces.
@@ -56,10 +62,6 @@ def t_END(t):
     r'end'
     return t
 
-def t_THEN(t):
-    r'then'
-    return t
-
 def t_ELSE(t):
     r'else'
     return t
@@ -68,15 +70,35 @@ def t_ELSIF(t):
     r'elsif'
     return t
 
+def t_WHILE(t):
+    r'while'
+    return t
+    
+def t_DO(t):
+    r'do'
+    return t
+
+def t_DEF(t):
+    r'def'
+    return t
+    
+def t_RETURN(t):
+    r'return'
+    return t
+
 def t_FLOAT(t):
     r'\d+\.\d+'
     t.value = float(t.value)
     return t
 
-# An int is 1 or more numbers.
 def t_INT(t):
     r'\d+'
     t.value = int(t.value)
+    return t
+    
+def t_STRING(t):
+    r'".*?"'
+    t.value = str(t.value[1 : -1])
     return t
 
 # A NAME is a variable name. A variable can be 1 or more characters in length.
@@ -112,36 +134,110 @@ precedence = (
 def p_program(p):
     '''
     program : statement_list
-            | empty
     '''
     p[0] = p[1]
 
 def p_statement_list(p):
     '''
-    statement_list : statement statement_list
+    statement_list : statement empty statement_list
+                   | statement NEWLINE statement_list
+                   | NEWLINE
                    | empty
     '''
     if len(p) > 2:
-        p[0] = [p[1]] + p[2]
+        p[0] = [p[1]] + p[3]
     else:
         p[0] = []
+        
+
+def p_method(p):
+    '''
+    statement : DEF NAME PARENTHESES_OPEN argument_list PARENTHESES_CLOSE NEWLINE statement_list END
+    '''
+    p[0] = ('def', p[2], p[4], p[7])
+
+def p_method_no_parenthesis(p):
+    '''
+    statement : DEF NAME NEWLINE statement_list END
+    '''
+    p[0] = ('def', p[2], [], p[4])
+
+def p_method_call_no_parenthesis(p):
+    '''
+    method_call : NAME calling_argument_list
+    '''
+    p[0] = ('method_call', p[1], p[2])
+    
+def p_method_call_with_parenthesis(p):
+    '''
+    method_call : NAME PARENTHESES_OPEN PARENTHESES_CLOSE
+                | NAME PARENTHESES_OPEN calling_argument_list PARENTHESES_CLOSE
+    '''
+    if len(p) > 4:
+        p[0] = ('method_call', p[1], p[3])
+    else:
+        p[0] = ('method_call', p[1], [])
+
+def p_calling_argument_list(p):
+    '''
+    calling_argument_list : expression COMMA calling_argument_list
+                  | expression
+    '''
+    if len(p) > 2:
+        p[0] = [p[1]] + p[3]
+    elif p[1] == None:
+        p[0] = []
+    else:
+        p[0] = [p[1]]
+
+def p_argument_list(p):
+    '''
+    argument_list : argument COMMA argument_list
+                  | argument
+                  | empty
+    '''
+    if len(p) > 2:
+        p[0] = [p[1]] + p[3]
+    elif p[1] == None:
+        p[0] = []
+    else:
+        p[0] = [p[1]]
+
+def p_argument(p):
+    '''
+    argument : identifier EQUALS factor
+             | identifier
+    '''
+    if len(p) > 2:
+        p[0] = (p[1], p[3])
+    else:
+        p[0] = (p[1], None)
+
+def p_conditional_statement(p):
+    '''
+    statement : IF expression NEWLINE statement_list elsif empty empty END
+              | IF expression NEWLINE statement_list elsif ELSE statement_list END
+    '''
+    p[0] = ('if', p[2], p[4], p[5], p[7])
+    
+def p_while_statement(p):
+    '''
+    statement : WHILE expression DO NEWLINE statement_list END
+    '''
+    p[0] = ('while', p[2], p[5])
 
 def p_statement(p):
     '''
-    statement : if_statement
-              | assignment NEWLINE
-              | expression NEWLINE
-              | assignment
+    statement : assignment
               | expression
     '''
     p[0] = p[1]
 
-def p_if_statement(p):
+def p_return_statement(p):
     '''
-    if_statement : IF expression NEWLINE statement_list elsif empty empty END
-                 | IF expression NEWLINE statement_list elsif ELSE statement_list END
+    statement : RETURN expression
     '''
-    p[0] = ('if', p[2], p[4], p[5], p[7])
+    p[0] = ('return', p[2])
 
 def p_elsif(p):
     '''
@@ -186,6 +282,12 @@ def p_expression_compare(p):
     '''
     p[0] = (p[2], p[1], p[3])
 
+def p_expression_method_call(p):
+    '''
+    expression : method_call
+    '''
+    p[0] = p[1]
+
 def p_expression_factor(p):
     '''
     expression : factor
@@ -196,6 +298,7 @@ def p_factor(p):
     '''
     factor : INT
            | FLOAT
+           | STRING
            | identifier
     '''
     p[0] = p[1]
