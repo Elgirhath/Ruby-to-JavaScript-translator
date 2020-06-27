@@ -1,8 +1,9 @@
 class Method:
-    def __init__(self, name, argument_list, statement_list):
+    def __init__(self, name, argument_list, statement_list, context = None):
         self.name = name
         self.argument_list = argument_list
         self.statement_list = statement_list
+        self.context = context
 
     def __str__(self):
         out = "Method("
@@ -13,7 +14,13 @@ class Method:
         return out
 
     def toJavaScript(self):
-        out = "function " + self.name + "("
+        if self.context == "class":
+            out = ""
+        else:
+            out = "function "
+
+        out += self.name + "("
+
         for i, argument in enumerate(self.argument_list.children):
             if i != 0:
                 out += ", "

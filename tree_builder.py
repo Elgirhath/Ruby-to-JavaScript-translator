@@ -18,6 +18,8 @@ from syntax_tree.nodes.identifier import Identifier
 from syntax_tree.nodes.built_in import BuiltIn
 from syntax_tree.nodes.not_operator import Not
 from syntax_tree.nodes.parenthesis import Parenthesis
+from syntax_tree.nodes.class_definition import Class
+from syntax_tree.nodes.new_expression import New
 
 tokens = [
 
@@ -57,7 +59,9 @@ tokens = [
     'METHOD_COMPLEX_NAME',
     'AND',
     'OR',
-    'NOT'
+    'NOT',
+    'CLASS',
+    'NEW'
 ]
 
 # Use regular expressions to define what each token is
@@ -114,6 +118,10 @@ def t_DEF(t):
 def t_RETURN(t):
     r'return'
     return t
+    
+def t_CLASS(t):
+    r'class'
+    return t
 
 def t_FLOAT(t):
     r'\d+\.\d+'
@@ -145,6 +153,11 @@ def t_OR(t):
     
 def t_NOT(t):
     r'!|not'
+    return t
+    
+def t_NEW(t):
+    r'[a-zA-Z_][a-zA-Z_0-9]*(\.[a-zA-Z_][a-zA-Z_0-9]*)*\.new'
+    t.value = t.value[:-4]
     return t
     
 def t_METHOD_COMPLEX_NAME(t):
@@ -237,6 +250,7 @@ def p_method_call_no_parenthesis_empty(p):
     '''
     p[0] = MethodCallFactory.get(p[1], NodeList([]))
     
+    
 def p_method_name(p):
     '''
     method_name : METHOD_COMPLEX_NAME
@@ -293,6 +307,26 @@ def p_argument(p):
         p[0] = MethodArgument(p[1], p[3])
     else:
         p[0] = MethodArgument(p[1], None)
+
+#
+# CLASS
+#
+
+def p_class(p):
+    '''
+    statement : CLASS identifier NEWLINE statement_list END
+    '''
+    p[0] = Class(p[2], p[4])
+    
+def p_new(p):
+    '''
+    expression : NEW
+    '''
+    p[0] = New(p[1])
+
+#
+# IF
+#
 
 def p_if_statement(p):
     '''
