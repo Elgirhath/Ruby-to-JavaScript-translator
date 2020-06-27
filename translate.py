@@ -2,6 +2,16 @@ import ply.lex as lex
 import ply.yacc as yacc
 import sys
 
+from syntax_tree.factories.operator_factory import OperatorFactory
+from syntax_tree.nodes.node_list import NodeList
+from syntax_tree.nodes.if_statement import If
+from syntax_tree.nodes.while_statement import While
+from syntax_tree.nodes.return_statement import Return
+from syntax_tree.nodes.method_argument import MethodArgument
+from syntax_tree.nodes.method import Method
+from syntax_tree.nodes.else_if import ElseIf
+from syntax_tree.nodes.method_call import MethodCall
+
 tokens = [
 
     'INT',
@@ -47,13 +57,8 @@ t_LESS_OR_EQUAL = r'<\='
 t_GREATER_OR_EQUAL = r'>\='
 t_COMMA = r'\,'
 
-# Ply's special t_ignore variable allows us to define characters the lexer will ignore.
-# We're ignoring spaces.
 t_ignore = r' '
 
-# More complicated tokens, such as tokens that are more than 1 character in length
-# are defined using functions.
-# A float is 1 or more numbers followed by a dot (.) followed by 1 or more numbers again.
 def t_IF(t):
     r'if'
     return t
@@ -101,10 +106,6 @@ def t_STRING(t):
     t.value = str(t.value[1 : -1])
     return t
 
-# A NAME is a variable name. A variable can be 1 or more characters in length.
-# The first character must be in the ranges a-z A-Z or be an underscore.
-# Any character following the first character can be a-z A-Z 0-9 or an underscore.
-
 def t_NAME(t):
     r'[a-zA-Z_][a-zA-Z_0-9]*'
     t.type = 'NAME'
@@ -119,7 +120,6 @@ def t_NEWLINE(t):
     t.lexer.lineno += len(t.value) # number of \n
     return t
 
-# Build the lexer
 lexer = lex.lex()
 
 # Ensure our parser understands the correct order of operations.
@@ -145,28 +145,30 @@ def p_statement_list(p):
                    | empty
     '''
     if len(p) > 2:
-        p[0] = [p[1]] + p[3]
+        statement_list = p[3]
+        statement_list.children.insert(0, p[1])
+        p[0] = statement_list
     else:
-        p[0] = []
+        p[0] = NodeList([])
         
 
 def p_method(p):
     '''
     statement : DEF NAME PARENTHESES_OPEN argument_list PARENTHESES_CLOSE NEWLINE statement_list END
     '''
-    p[0] = ('def', p[2], p[4], p[7])
+    p[0] = Method(p[2], p[4], p[7])
 
 def p_method_no_parenthesis(p):
     '''
     statement : DEF NAME NEWLINE statement_list END
     '''
-    p[0] = ('def', p[2], [], p[4])
+    p[0] = Method(p[2], [], p[4])
 
 def p_method_call_no_parenthesis(p):
     '''
     method_call : NAME calling_argument_list
     '''
-    p[0] = ('method_call', p[1], p[2])
+    p[0] = MethodCall(p[1], p[2])
     
 def p_method_call_with_parenthesis(p):
     '''
@@ -174,9 +176,9 @@ def p_method_call_with_parenthesis(p):
                 | NAME PARENTHESES_OPEN calling_argument_list PARENTHESES_CLOSE
     '''
     if len(p) > 4:
-        p[0] = ('method_call', p[1], p[3])
+        p[0] = MethodCall(p[1], p[3])
     else:
-        p[0] = ('method_call', p[1], [])
+        p[0] = MethodCall(p[1], [])
 
 def p_calling_argument_list(p):
     '''
@@ -197,11 +199,13 @@ def p_argument_list(p):
                   | empty
     '''
     if len(p) > 2:
-        p[0] = [p[1]] + p[3]
+        argument_list = p[3]
+        argument_list.children.insert(0, p[1])
+        p[0] = argument_list
     elif p[1] == None:
-        p[0] = []
+        p[0] = NodeList([])
     else:
-        p[0] = [p[1]]
+        p[0] = NodeList([p[1]])
 
 def p_argument(p):
     '''
@@ -209,22 +213,41 @@ def p_argument(p):
              | identifier
     '''
     if len(p) > 2:
-        p[0] = (p[1], p[3])
+        p[0] = MethodArgument(p[1], p[3])
     else:
-        p[0] = (p[1], None)
+        p[0] = MethodArgument(p[1], None)
 
-def p_conditional_statement(p):
+def p_if_statement(p):
     '''
-    statement : IF expression NEWLINE statement_list elsif empty empty END
-              | IF expression NEWLINE statement_list elsif ELSE statement_list END
+    statement : IF expression NEWLINE statement_list elsif_list empty empty END
+              | IF expression NEWLINE statement_list elsif_list ELSE statement_list END
     '''
-    p[0] = ('if', p[2], p[4], p[5], p[7])
+    p[0] = If(p[2], p[4], p[5], p[7])
+    
+
+def p_elsif_list(p):
+    '''
+    elsif_list : elsif elsif_list
+               | empty
+    '''
+    if len(p) > 2:
+        elsif_list = p[2]
+        elsif_list.children.insert(0, p[1])
+        p[0] = elsif_list
+    else:
+        p[0] = NodeList([])
+
+def p_elsif(p):
+    '''
+    elsif : ELSIF expression NEWLINE statement_list
+    '''
+    p[0] = ElseIf(p[2], p[4])
     
 def p_while_statement(p):
     '''
     statement : WHILE expression DO NEWLINE statement_list END
     '''
-    p[0] = ('while', p[2], p[5])
+    p[0] = While(p[2], p[5])
 
 def p_statement(p):
     '''
@@ -237,25 +260,14 @@ def p_return_statement(p):
     '''
     statement : RETURN expression
     '''
-    p[0] = ('return', p[2])
-
-def p_elsif(p):
-    '''
-    elsif : ELSIF expression NEWLINE statement_list elsif
-          | empty
-    '''
-    if p[1] == None:
-        p[0] = []
-    else:
-        p[0] = [(p[1], p[2], p[4])] + p[5]
+    p[0] = Return(p[2])
 
 def p_assignment(p):
     '''
     assignment : identifier EQUALS expression
     '''
-    p[0] = ('=', p[1], p[3])
+    p[0] = OperatorFactory.get(p[2], p[1], p[3])
 
-# Expressions are recursive.
 def p_expression(p):
     '''
     expression : expression MULTIPLY expression
@@ -263,8 +275,8 @@ def p_expression(p):
                | expression PLUS expression
                | expression MINUS expression
     '''
-    # Build our tree.
-    p[0] = (p[2], p[1], p[3])
+
+    p[0] = OperatorFactory.get(p[2], p[1], p[3])
 
 def p_expression_brackets(p):
     '''
@@ -280,7 +292,7 @@ def p_expression_compare(p):
                | expression LESS_OR_EQUAL expression
                | expression GREATER_OR_EQUAL expression
     '''
-    p[0] = (p[2], p[1], p[3])
+    p[0] = OperatorFactory.get(p[2], p[1], p[3])
 
 def p_expression_method_call(p):
     '''
