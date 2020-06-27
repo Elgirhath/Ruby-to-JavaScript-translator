@@ -12,6 +12,8 @@ from syntax_tree.nodes.method import Method
 from syntax_tree.nodes.else_if import ElseIf
 from syntax_tree.nodes.method_call import MethodCall
 from syntax_tree.factories.method_call_factory import MethodCallFactory
+from syntax_tree.nodes.list import List
+from syntax_tree.nodes.list_access_operator import ListAccessOperator
 from syntax_tree.nodes.identifier import Identifier
 from syntax_tree.nodes.built_in import BuiltIn
 from syntax_tree.nodes.parenthesis import Parenthesis
@@ -26,10 +28,14 @@ tokens = [
     'MINUS',
     'DIVIDE',
     'MULTIPLY',
+    'POWER',
+    'MODULO',
     'EQUALS',
+    'PLUS_EQUALS',
+    'MINUS_EQUALS',
     'NEWLINE',
-    'PARENTHESES_OPEN',
-    'PARENTHESES_CLOSE',
+    'PARENTHESIS_OPEN',
+    'PARENTHESIS_CLOSE',
     'IF',
     'END',
     'ELSE',
@@ -44,23 +50,30 @@ tokens = [
     'DEF',
     'COMMA',
     'RETURN',
-    'SPACE',
-    'METHOD_NAME_WITH_PARENTHESIS'
+    'SQUARE_BRACKET_OPEN',
+    'SQUARE_BRACKET_CLOSE',
+    'METHOD_COMPLEX_NAME'
 ]
 
 # Use regular expressions to define what each token is
 t_PLUS = r'\+'
 t_MINUS = r'\-'
+t_PLUS_EQUALS = r'\+\='
+t_MINUS_EQUALS = r'\-\='
 t_MULTIPLY = r'\*'
 t_DIVIDE = r'\/'
+t_POWER = r'\*\*'
+t_MODULO = r'%'
 t_EQUALS = r'\='
-t_PARENTHESES_OPEN = r'\('
-t_PARENTHESES_CLOSE = r'\)'
+t_PARENTHESIS_OPEN = r'\('
+t_PARENTHESIS_CLOSE = r'\)'
 t_DOUBLE_EQUALS = r'\=\='
 t_LESS_THAN = r'<'
 t_GREATER_THAN = r'>'
 t_LESS_OR_EQUAL = r'<\='
 t_GREATER_OR_EQUAL = r'>\='
+t_SQUARE_BRACKET_OPEN = r'\['
+t_SQUARE_BRACKET_CLOSE = r'\]'
 t_COMMA = r'\,'
 
 t_ignore = r' '
@@ -111,10 +124,9 @@ def t_STRING(t):
     r'".*?"'
     t.value = str(t.value[1 : -1])
     return t
-
-def t_METHOD_NAME_WITH_PARENTHESIS(t):
-    r'[a-zA-Z_][a-zA-Z_0-9]*\('
-    t.value = t.value[:-1]
+    
+def t_METHOD_COMPLEX_NAME(t):
+    r'[a-zA-Z_][a-zA-Z_0-9]*(\.[a-zA-Z_][a-zA-Z_0-9]*)+'
     return t
 
 def t_NAME(t):
@@ -171,9 +183,9 @@ def p_statement_list_whitespace(p):
 
 def p_method(p):
     '''
-    statement : DEF METHOD_NAME_WITH_PARENTHESIS argument_list PARENTHESES_CLOSE NEWLINE statement_list END
+    statement : DEF NAME PARENTHESIS_OPEN argument_list PARENTHESIS_CLOSE NEWLINE statement_list END
     '''
-    p[0] = Method(p[2], p[3], p[6])
+    p[0] = Method(p[2], p[4], p[7])
 
 def p_method_no_parenthesis(p):
     '''
@@ -183,11 +195,10 @@ def p_method_no_parenthesis(p):
 
 # we don't handle methods with no parameters and no parenthesis at this stage
 # as it is undistinguishable from a single identifier. This will be resolved on another stage
-    
 def p_method_call_with_parenthesis(p):
     '''
-    method_call : METHOD_NAME_WITH_PARENTHESIS PARENTHESES_CLOSE
-                | METHOD_NAME_WITH_PARENTHESIS calling_argument_list PARENTHESES_CLOSE
+    method_call : method_name_with_parenthesis PARENTHESIS_CLOSE
+                | method_name_with_parenthesis expression_list PARENTHESIS_CLOSE
     '''
     if len(p) > 3:
         p[0] = MethodCallFactory.get(p[1], p[2])
@@ -196,19 +207,43 @@ def p_method_call_with_parenthesis(p):
 
 def p_method_call_no_parenthesis(p):
     '''
-    method_call : NAME calling_argument_list
+    method_call : method_name expression_list
     '''
     p[0] = MethodCallFactory.get(p[1], p[2])
-
-def p_calling_argument_list(p):
+    
+def p_method_call_no_parenthesis_empty(p):
     '''
-    calling_argument_list : expression COMMA calling_argument_list
+    method_call : METHOD_COMPLEX_NAME empty
+    '''
+    p[0] = MethodCallFactory.get(p[1], NodeList([]))
+    
+def p_method_name(p):
+    '''
+    method_name : METHOD_COMPLEX_NAME
+    '''
+    p[0] = p[1]
+    
+def p_method_name_identifier(p):
+    '''
+    method_name : identifier
+    '''
+    p[0] = p[1].name
+
+def p_method_name_with_parenthesis(p):
+    '''
+    method_name_with_parenthesis : NAME PARENTHESIS_OPEN
+    '''
+    p[0] = p[1]
+
+def p_expression_list(p):
+    '''
+    expression_list : expression COMMA expression_list
                   | expression
     '''
     if len(p) > 2:
-        argument_list = p[3]
-        argument_list.children.insert(0, p[1])
-        p[0] = argument_list
+        expression_list = p[3]
+        expression_list.children.insert(0, p[1])
+        p[0] = expression_list
     elif p[1] == None:
         p[0] = None
     else:
@@ -287,6 +322,8 @@ def p_return_statement(p):
 def p_assignment(p):
     '''
     assignment : identifier EQUALS expression
+               | identifier PLUS_EQUALS expression
+               | identifier MINUS_EQUALS expression
     '''
     p[0] = OperatorFactory.get(p[2], p[1], p[3])
 
@@ -296,15 +333,23 @@ def p_expression(p):
                | expression DIVIDE expression
                | expression PLUS expression
                | expression MINUS expression
+               | expression POWER expression
+               | expression MODULO expression
     '''
 
     p[0] = OperatorFactory.get(p[2], p[1], p[3])
 
 def p_expression_brackets(p):
     '''
-    expression : PARENTHESES_OPEN expression PARENTHESES_CLOSE
+    expression : PARENTHESIS_OPEN expression PARENTHESIS_CLOSE
     '''
     p[0] = Parenthesis(p[2])
+
+def p_expression_list_definition(p):
+    '''
+    expression : SQUARE_BRACKET_OPEN expression_list SQUARE_BRACKET_CLOSE
+    '''
+    p[0] = List(p[2])
 
 def p_expression_compare(p):
     '''
@@ -315,6 +360,12 @@ def p_expression_compare(p):
                | expression GREATER_OR_EQUAL expression
     '''
     p[0] = OperatorFactory.get(p[2], p[1], p[3])
+    
+def p_list_access_operator(p):
+    '''
+    expression : identifier SQUARE_BRACKET_OPEN expression SQUARE_BRACKET_CLOSE
+    '''
+    p[0] = ListAccessOperator(p[1], p[3])
 
 def p_expression_method_call(p):
     '''
