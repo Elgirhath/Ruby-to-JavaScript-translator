@@ -12,6 +12,7 @@ from syntax_tree.nodes.method import Method
 from syntax_tree.nodes.else_if import ElseIf
 from syntax_tree.nodes.method_call import MethodCall
 from syntax_tree.factories.method_call_factory import MethodCallFactory
+from syntax_tree.factories.method_factory import MethodFactory
 from syntax_tree.nodes.list import List
 from syntax_tree.nodes.list_access_operator import ListAccessOperator
 from syntax_tree.nodes.identifier import Identifier
@@ -19,7 +20,8 @@ from syntax_tree.nodes.built_in import BuiltIn
 from syntax_tree.nodes.not_operator import Not
 from syntax_tree.nodes.parenthesis import Parenthesis
 from syntax_tree.nodes.class_definition import Class
-from syntax_tree.nodes.new_expression import New
+from syntax_tree.nodes.attr_reader import AttrReader
+from syntax_tree.nodes.instance_variable import InstanceVariable
 
 tokens = [
 
@@ -61,7 +63,10 @@ tokens = [
     'OR',
     'NOT',
     'CLASS',
-    'NEW'
+    'AT',
+    'ATTR_READER',
+    'COLON'
+    # 'INITIALIZE'
 ]
 
 # Use regular expressions to define what each token is
@@ -83,7 +88,9 @@ t_LESS_OR_EQUAL = r'<\='
 t_GREATER_OR_EQUAL = r'>\='
 t_SQUARE_BRACKET_OPEN = r'\['
 t_SQUARE_BRACKET_CLOSE = r'\]'
+t_AT = r'@'
 t_COMMA = r'\,'
+t_COLON = r':'
 
 t_ignore = r' '
 
@@ -155,9 +162,12 @@ def t_NOT(t):
     r'!|not'
     return t
     
-def t_NEW(t):
-    r'[a-zA-Z_][a-zA-Z_0-9]*(\.[a-zA-Z_][a-zA-Z_0-9]*)*\.new'
-    t.value = t.value[:-4]
+# def t_INITIALIZE(t):
+#     r'initialize'
+#     return t
+
+def t_ATTR_READER(t):
+    r'attr_reader'
     return t
     
 def t_METHOD_COMPLEX_NAME(t):
@@ -212,13 +222,12 @@ def p_statement_list_whitespace(p):
         p[0] = p[2]
     else:
         p[0] = NodeList([])
-        
 
 def p_method(p):
     '''
     statement : DEF NAME PARENTHESIS_OPEN argument_list PARENTHESIS_CLOSE NEWLINE statement_list END
     '''
-    p[0] = Method(p[2], p[4], p[7])
+    p[0] = MethodFactory.get(p[2], p[4], p[7])
 
 def p_method_no_parenthesis(p):
     '''
@@ -250,6 +259,13 @@ def p_method_call_no_parenthesis_empty(p):
     '''
     p[0] = MethodCallFactory.get(p[1], NodeList([]))
     
+
+def p_method_name_with_parenthesis(p):
+    '''
+    method_name_with_parenthesis : NAME PARENTHESIS_OPEN
+                                 | METHOD_COMPLEX_NAME PARENTHESIS_OPEN
+    '''
+    p[0] = p[1]
     
 def p_method_name(p):
     '''
@@ -262,12 +278,6 @@ def p_method_name_identifier(p):
     method_name : identifier
     '''
     p[0] = p[1].name
-
-def p_method_name_with_parenthesis(p):
-    '''
-    method_name_with_parenthesis : NAME PARENTHESIS_OPEN
-    '''
-    p[0] = p[1]
 
 def p_expression_list(p):
     '''
@@ -317,12 +327,19 @@ def p_class(p):
     statement : CLASS identifier NEWLINE statement_list END
     '''
     p[0] = Class(p[2], p[4])
-    
-def p_new(p):
+
+
+def p_instance_var_identifier(p):
     '''
-    expression : NEW
+    identifier : AT identifier
     '''
-    p[0] = New(p[1])
+    p[0] = InstanceVariable(p[2])
+
+def p_attr_reader(p):
+    '''
+    statement : ATTR_READER COLON identifier
+    '''
+    p[0] = AttrReader(p[3])
 
 #
 # IF
@@ -461,7 +478,8 @@ def p_builtin(p):
 
 def p_identifier(p):
     '''
-    identifier : NAME
+    identifier : METHOD_COMPLEX_NAME
+               | NAME
     '''
     p[0] = Identifier(p[1])
 

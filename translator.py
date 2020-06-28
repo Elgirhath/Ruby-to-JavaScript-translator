@@ -3,7 +3,6 @@ import sys
 import jsbeautifier
 
 def convert(tree):
-    print(tree)
     return tree.toJavaScript()
 
 def translate(file_path):
@@ -18,6 +17,7 @@ def translate(file_path):
     file = open('out.js', 'w')
     file.write(beautified_code)
     file.close()
+
 
 if __name__ == "__main__":
     translate(sys.argv[1])
