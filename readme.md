@@ -13,6 +13,8 @@ Translator written in Python, which allows you to convert your Ruby code into Ja
   - [AST tree showcase](#ast-tree-showcase)
 - [Components](#components)
 
+
+
 ## Manual
 
 To run the translator you will need:
@@ -122,45 +124,8 @@ console.log(a[0] + a[1])
 ```
 
 AST tree:
-    
-``` mermaid
-graph TB
-    Program([Program]) --> |StatementList| A;
-    A[NodeList] --> B[GenericOperator];
-    B --> |Symbol| BA[=];
-    A --> C[MethodCall];
-    
-    B --> D[Identifier];
-    D -->|Name| E[a];
-    
-    B --> F[List];
-    F --> |ExpressionList| G[NodeList];
-    G --> GA[7];
-    G --> GB[GenericOperator];
-    GB --> |Symbol| GBA[**];
-    GB --> GBB[2];
-    GB --> GBC[3];
-    
-    C -.-> |Extends| CA[Puts];
-    CA --> |Name| CB[puts];
-    CA --> |Arguments| CAB[NodeList];
-    CAB --> CABA[GenericOperator];
-    CABA --> |Symbol| CABAA[+];
-    CABA --> CABAB[ListAccessOperator];
-    CABAB --> |Identifier| CABABA[Identifier];
-    CABABA --> |Name| CABABAA[a];
-    
-    CABAB --> |IndexExpression| CABABB[0];
-    
-    CABA --> CABAC[ListAccessOperator];
-    CABAC --> |Identifier| CABACA[Identifier];
-    CABACA --> |Name| CABACAA[a];
-    
-    CABAC --> |IndexExpression| CABACB[1];
-    
-    
-```
 
+![AST tree graph](ast_tree_graph.png)
 
 ## Components
  
