@@ -6,13 +6,12 @@ Translator written in Python, which allows you to convert your Ruby code into Ja
 
 ## Table of contents
 
-- [Translator Ruby to JavaScript](#translator-ruby-to-javascript)
-  - [Table of contents](#table-of-contents)
-  - [Manual](#manual)
-  - [Technology](#technology)
-  - [How it works](#how-it-works)
-    - [AST tree showcase](#ast-tree-showcase)
-  - [Components](#components)
+- [Introduction](#translator-ruby-to-javascript)
+- [Manual](#manual)
+- [Technology](#technology)
+- [How it works](#how-it-works)
+  - [AST tree showcase](#ast-tree-showcase)
+- [Components](#components)
 
 ## Manual
 
