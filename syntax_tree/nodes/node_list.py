@@ -3,13 +3,13 @@ class NodeList:
         self.children = children
 
     def __str__(self):
-        out = "["
+        out = "NodeList(["
 
         for child in self.children:
             if self.children.index(child) != 0:
                 out += ", "
             out += str(child)
-        out += "]"
+        out += "])"
         return out
 
     def toJavaScript(self, separator = "\n"):
